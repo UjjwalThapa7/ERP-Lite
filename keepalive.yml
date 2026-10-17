@@ -1,0 +1,18 @@
+# Weekly: checks the live site and database answer. Contact with the database should also help
+# stop the free Supabase plan pausing the project (not guaranteed). The key below is the public
+# publishable key, which is safe to store in the repository.
+name: Weekly health check
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Website is up
+        run: curl -fsS https://thapa-kurtha-sales-ujjwalthapa7s-projects.vercel.app | grep -q "Thapa Kurtha"
+      - name: Database answers
+        run: |
+          curl -fsS "https://wuxowaxayleogmvrjbxk.supabase.co/rest/v1/sales?select=id&limit=1" \
+            -H "apikey: sb_publishable_zdYKYdHiKlyRtXhN8R3GPQ_obAw_5aR" >/dev/null
