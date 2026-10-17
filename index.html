@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#a3261f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<title>Thapa Kurtha Corner – Sales</title>
+<style>
+:root{--bg:#faf7f2;--card:#fff;--tx:#241f1a;--mut:#7a6f64;--ac:#a3261f;--acx:#fff;--bd:#e6dfd5;--ok:#1d7a46;--bad:#b3261e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
+@media (prefers-color-scheme:dark){:root{--bg:#171412;--card:#221e1b;--tx:#f1ebe3;--mut:#a39889;--ac:#e0574d;--acx:#1a0b09;--bd:#3a332d;--ok:#4cc27f;--bad:#ff8a80}}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:90px}
+main{max-width:560px;margin:0 auto;padding:14px}
+h1{font-size:18px;margin:4px 0 12px}h2{font-size:15px;margin:16px 0 8px;color:var(--mut);font-weight:600}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px;margin-bottom:10px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.big{font-size:22px;font-weight:700}.mut{color:var(--mut);font-size:13px}
+button{font:inherit;border:0;border-radius:12px;padding:14px;background:var(--ac);color:var(--acx);font-weight:600;width:100%}
+button.sec{background:transparent;color:var(--tx);border:1px solid var(--bd)}button:disabled{opacity:.5}
+input,select{font:inherit;width:100%;padding:12px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)}
+.row{display:flex;gap:8px;margin-bottom:8px}.row>*{min-width:0}.w2{flex:2}.w1{flex:1}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{background:none;color:var(--mut);border-radius:0;padding:14px 0;font-size:13px}nav button.on{color:var(--ac)}
+.msg{padding:10px;border-radius:10px;margin:8px 0;font-size:14px}.ok{background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}.bad{background:color-mix(in srgb,var(--bad) 15%,transparent);color:var(--bad)}
+.v{opacity:.55;text-decoration:line-through}.tag{font-size:12px;color:var(--bad)}.neg{color:var(--bad)}.pill{display:inline-block;padding:2px 8px;border:1px solid var(--bd);border-radius:99px;font-size:12px;color:var(--mut)}
+.tot{display:flex;justify-content:space-between;padding:3px 0;gap:8px}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<nav id="nav"></nav>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+const SB=supabase.createClient('https://wuxowaxayleogmvrjbxk.supabase.co','sb_publishable_zdYKYdHiKlyRtXhN8R3GPQ_obAw_5aR');
+const TZ='Asia/Kathmandu',QK='tkc_queue_v3',CK='tkc_cache_v3',MK='tkc_member_v2',FK='tkc_failed_v3';
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const npr=n=>'NPR '+(Math.round(n)||0).toLocaleString('en-IN');
+const dayKey=t=>new Date(t).toLocaleDateString('en-CA',{timeZone:TZ});
+const fmtT=t=>new Date(t).toLocaleString('en-GB',{timeZone:TZ,day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true});
+const jget=(k,d)=>{try{return JSON.parse(localStorage.getItem(k)||'')??d}catch(e){return d}};
+const jset=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}};
+const qget=()=>jget(QK,[]),qset=q=>jset(QK,q);
+const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,r)=>setTimeout(()=>r({message:'timeout'}),ms))]);
+const norm=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+const num=id=>+($(id)?.value)||0;
+let user=null,member=false,ready=false,server=Object.assign({sales:[],customers:[],vendors:[],cpays:[],vtxns:[]},jget(CK,{})),D={},tab='home',msg=null,saving=false,draftId=crypto.randomUUID(),voiding=null,hq='',hm='all',syncing=false,online=true,pm='c',psel=null;
+const t0=dayKey(Date.now());let rFrom=t0,rTo=t0;
+
+function recompute(){const q=qget();const mk=(k,t)=>{const ids=new Set(server[k].map(x=>x.id));return [...server[k],...q.filter(o=>o.op===t&&!ids.has(o.id)).map(o=>({...o,pending:1}))]};
+ D.sales=mk('sales','sale');D.customers=mk('customers','customer');D.vendors=mk('vendors','vendor');D.cpays=mk('cpays','cpay');D.vtxns=mk('vtxns','vtxn');
+ [D.sales,D.cpays,D.vtxns].forEach(l=>{l.forEach(x=>x.dayKey=dayKey(x.ts));l.sort((a,b)=>b.ts-a.ts)})}
+const live=()=>D.sales.filter(s=>!s.void);
+const cname=id=>(D.customers.find(c=>c.id===id)||{}).name||'?';
+function cbal(){const m={};D.customers.forEach(c=>m[c.id]=0);live().forEach(s=>{if(s.credit&&s.customer_id)m[s.customer_id]=(m[s.customer_id]||0)+s.credit});D.cpays.forEach(p=>m[p.customer_id]=(m[p.customer_id]||0)-p.cash-p.fonepay);return m}
+function vbal(){const m={};D.vendors.forEach(v=>m[v.id]=0);D.vtxns.forEach(t=>m[t.vendor_id]=(m[t.vendor_id]||0)+(t.kind==='purchase'?t.amount:-t.amount));return m}
+const tsum=m=>Object.values(m).reduce((a,b)=>a+b,0);
+function products(){const m={};[...D.sales].sort((a,b)=>a.ts-b.ts).forEach(s=>(s.items||[]).forEach(i=>{m[norm(i.name)]={name:i.name.trim().replace(/\s+/g,' '),price:i.price}}));return m}
+function sum(list){const r={gross:0,disc:0,net:0,cash:0,fp:0,credit:0,n:list.length,items:0,by:{}};list.forEach(s=>{r.gross+=s.subtotal;r.disc+=s.discount;r.net+=s.total;r.cash+=s.cash;r.fp+=s.fonepay;r.credit+=s.credit||0;(s.items||[]).forEach(i=>{r.items+=i.qty;const k=i.name.toLowerCase();r.by[k]=r.by[k]||{name:i.name,q:0,amt:0};r.by[k].q+=i.qty;r.by[k].amt+=i.qty*i.price})});return r}
+
+const mapSale=r=>({id:r.id,ts:Date.parse(r.sold_at),items:(r.sale_items||[]).map(i=>({name:i.name,price:+i.price,qty:i.qty})),subtotal:+r.subtotal,discount:+r.discount,total:+r.total,method:r.method,cash:+r.cash,fonepay:+r.fonepay,credit:+r.credit,customer_id:r.customer_id,note:r.note,void:r.status==='void',voidReason:r.void_reason});
+async function refresh(){const R=await withTimeout(Promise.all([SB.from('sales').select('*,sale_items(name,price,qty)').order('sold_at',{ascending:false}).limit(3000),SB.from('customers').select('*').limit(3000),SB.from('vendors').select('*').limit(3000),SB.from('customer_payments').select('*').limit(5000),SB.from('vendor_txns').select('*').limit(5000)]),15000);
+ R.forEach(r=>{if(r.error)throw r.error});
+ server={sales:R[0].data.map(mapSale),customers:R[1].data.map(c=>({id:c.id,name:c.name,phone:c.phone})),vendors:R[2].data.map(c=>({id:c.id,name:c.name,phone:c.phone})),cpays:R[3].data.map(p=>({id:p.id,customer_id:p.customer_id,ts:Date.parse(p.paid_at),cash:+p.cash,fonepay:+p.fonepay,note:p.note})),vtxns:R[4].data.map(t=>({id:t.id,vendor_id:t.vendor_id,ts:Date.parse(t.at),kind:t.kind,amount:+t.amount,method:t.method,note:t.note}))};
+ jset(CK,server);online=true;recompute()}
+
+const RPC={sale:'save_sale',customer:'add_customer',vendor:'add_vendor',cpay:'add_customer_payment',vtxn:'add_vendor_txn'};
+const payload=o=>{const iso=new Date(o.ts).toISOString();switch(o.op){
+ case 'sale':return{id:o.id,sold_at:iso,subtotal:o.subtotal,discount:o.discount,total:o.total,method:o.method,cash:o.cash,fonepay:o.fonepay,credit:o.credit||0,customer_id:o.customer_id||'',note:o.note||'',items:o.items};
+ case 'customer':case 'vendor':return{id:o.id,name:o.name,phone:o.phone||''};
+ case 'cpay':return{id:o.id,customer_id:o.customer_id,paid_at:iso,cash:o.cash,fonepay:o.fonepay,note:o.note||''};
+ case 'vtxn':return{id:o.id,vendor_id:o.vendor_id,at:iso,kind:o.kind,amount:o.amount,method:o.method||'',note:o.note||''}}};
+const send=async o=>{const {error}=await withTimeout(SB.rpc(RPC[o.op],{p:payload(o)}),10000);if(error)throw error};
+async function sync(){if(syncing||!user||!member)return;syncing=true;try{for(const o of qget()){try{await send(o);qset(qget().filter(x=>x.id!==o.id))}catch(e){if(e&&e.code){const f=jget(FK,[]);f.push({op:o.op,id:o.id,why:e.message});jset(FK,f);qset(qget().filter(x=>x.id!==o.id))}else throw e}}await refresh()}catch(e){online=false}finally{syncing=false;recompute();if(tab!=='sale')render()}}
+async function push(o){const q=qget();const before=q.length;q.push(o);if(!qset(q))return 'full';recompute();if(!(user&&member&&navigator.onLine!==false))return 'queued';
+ if(before>0){await sync();return qget().some(x=>x.id===o.id)?'queued':'saved'}
+ try{await send(o);qset(qget().filter(x=>x.id!==o.id));recompute();return 'saved'}catch(e){if(e&&e.code){qset(qget().filter(x=>x.id!==o.id));const f=jget(FK,[]);f.push({op:o.op,id:o.id,why:e.message});jset(FK,f);recompute();return 'rejected:'+e.message}online=false;return 'queued'}}
+const stMsg=(st,ok)=>st==='saved'?{ok:1,t:ok+' (saved to the server)'}:st==='queued'?{ok:0,t:ok+' – saved on this phone only. It will sync when internet returns.'}:st==='full'?{ok:0,t:'NOT saved: this phone could not store it. Write it in the notebook.'}:{ok:0,t:'NOT saved: '+st.replace('rejected:','')};
+
+function banner(){const n=qget().length,f=jget(FK,[]);return (msg&&msg.t?`<div class="msg ${msg.ok?'ok':'bad'}">${esc(msg.t)}</div>`:'')+(!online?'<div class="msg bad">No connection. You can keep working; entries stay on this phone and sync later.</div>':'')+(n?`<div class="msg bad">${n} entr${n>1?'ies':'y'} waiting to sync.<button class="sec" id="sy" style="margin-top:6px;padding:8px">Sync now</button></div>`:'')+(f.length?`<div class="msg bad">${f.length} entr${f.length>1?'ies were':'y was'} rejected by the server (${esc(f.map(x=>x.why).join('; ').slice(0,160))}). Re-enter ${f.length>1?'them':'it'}.<button class="sec" id="fd" style="margin-top:6px;padding:8px">Dismiss</button></div>`:'')}
+function nav(){$('#nav').style.display=(user&&member)?'flex':'none';$('#nav').innerHTML=[['home','Home'],['sale','＋ Sale'],['hist','History'],['ppl','People'],['rep','Report']].map(([k,l])=>`<button class="${tab===k?'on':''}" data-t="${k}">${l}</button>`).join('');
+ $('#nav').onclick=e=>{const t=e.target.dataset.t;if(t){tab=t;msg=null;psel=null;if(t==='sale')draftId=crypto.randomUUID();render()}}}
+
+function render(){nav();const a=$('#app');
+ if(!ready){a.innerHTML='<h1>Thapa Kurtha Corner</h1><div class="card">Loading…</div>';return}
+ if(!user)return rLogin(a);
+ if(!member){a.innerHTML='<h1>No access</h1><div class="card">This account is not allowed to use this shop. Ask the owner.</div><button class="sec" id="lo">Log out</button>';$('#lo').onclick=logout;return}
+ ({home:rHome,sale:rSale,hist:rHist,ppl:rPpl,rep:rRep})[tab](a);
+ a.insertAdjacentHTML('afterbegin',banner());const sy=$('#sy');if(sy)sy.onclick=()=>sync();const fd=$('#fd');if(fd)fd.onclick=()=>{jset(FK,[]);render()}}
+
+function rLogin(a){a.innerHTML=`<h1>Thapa Kurtha Corner</h1><div class="card"><div class="mut">Email</div><input id="em" type="email" autocomplete="username"><div class="mut" style="margin-top:8px">Password (at least 8 characters)</div><input id="pw" type="password" autocomplete="current-password"><div id="lm"></div><div class="row" style="margin-top:10px"><button id="li">Sign in</button></div><button class="sec" id="su">First time: create owner account</button></div>`;
+ const m=t=>$('#lm').innerHTML=`<div class="msg bad">${esc(t)}</div>`;
+ $('#li').onclick=async()=>{const {error}=await SB.auth.signInWithPassword({email:$('#em').value.trim(),password:$('#pw').value});if(error)return m(error.message);await start()};
+ $('#su').onclick=async()=>{const {data,error}=await SB.auth.signUp({email:$('#em').value.trim(),password:$('#pw').value});if(error)return m(error.message);if(!data.session){$('#lm').innerHTML='<div class="msg ok">Check your email and tap the confirmation link, then come back and Sign in.</div>';return}await start()}}
+async function logout(){await SB.auth.signOut();localStorage.removeItem(MK);member=false;user=null;render()}
+
+function rHome(a){const td=dayKey(Date.now()),mo=td.slice(0,7);const L=live(),t=sum(L.filter(s=>s.dayKey===td)),m=sum(L.filter(s=>s.dayKey.startsWith(mo)));
+ const cp=D.cpays.filter(p=>p.dayKey===td);const cc=cp.reduce((x,p)=>x+p.cash,0),cf=cp.reduce((x,p)=>x+p.fonepay,0);
+ a.innerHTML=`<h1>Thapa Kurtha Corner</h1><button id="go">＋ Record Sale</button>
+ <h2>Today</h2><div class="grid"><div class="card"><div class="mut">Total sales</div><div class="big">${npr(t.net)}</div></div><div class="card"><div class="mut">Transactions</div><div class="big">${t.n}</div></div><div class="card"><div class="mut">Cash in</div><div class="big">${npr(t.cash+cc)}</div></div><div class="card"><div class="mut">Fonepay in</div><div class="big">${npr(t.fp+cf)}</div></div><div class="card"><div class="mut">Credit given today</div><div class="big">${npr(t.credit)}</div></div><div class="card"><div class="mut">Collected today</div><div class="big">${npr(cc+cf)}</div></div></div>
+ <div class="grid"><div class="card"><div class="mut">To collect (udharo)</div><div class="big neg">${npr(tsum(cbal()))}</div></div><div class="card"><div class="mut">To pay vendors</div><div class="big">${npr(tsum(vbal()))}</div></div></div>
+ <div class="card"><div class="mut">This month sales</div><div class="big">${npr(m.net)}</div></div>
+ <h2>Recent</h2>${D.sales.slice(0,6).map(card).join('')||'<div class="card mut">No sales yet. Tap Record Sale to add your first one.</div>'}`;
+ $('#go').onclick=()=>{tab='sale';msg=null;draftId=crypto.randomUUID();render()}}
+
+function card(s){return `<div class="card ${s.void?'v':''}"><div class="tot"><b>${npr(s.total)}</b><span class="pill">${s.method}</span></div><div class="mut">${fmtT(s.ts)} · ${(s.items||[]).map(i=>esc(i.name)+(i.qty>1?' ×'+i.qty:'')).join(', ')}</div>${s.credit?`<div class="tag">Udharo ${npr(s.credit)} · ${esc(cname(s.customer_id))}</div>`:''}${s.pending?'<div class="tag">⏳ Waiting to sync (on this phone only)</div>':''}${s.void?'<div class="tag">Voided: '+esc(s.voidReason||'no reason given')+'</div>':''}</div>`}
+const lineHtml=()=>`<div class="row line"><input class="w2 nm" list="pl" placeholder="Product name" autocomplete="off"><input class="w1 pr" type="number" inputmode="decimal" placeholder="Price"><input class="qt" style="width:64px" type="number" inputmode="numeric" value="1" min="1"></div>`;
+
+function rSale(a){
+ a.innerHTML=`<h1>Record Sale</h1><div id="lines">${lineHtml()}</div><button class="sec" id="add">＋ Add another item</button>
+ <datalist id="pl">${Object.values(products()).map(p=>`<option value="${esc(p.name)}">`).join('')}</datalist><datalist id="cl">${D.customers.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist>
+ <div class="card" style="margin-top:10px"><div class="row"><div class="w1"><div class="mut">Discount (NPR)</div><input id="disc" type="number" inputmode="decimal" placeholder="0"></div><div class="w1"><div class="mut">Payment</div><select id="meth"><option>Cash</option><option>Fonepay</option><option>Split</option><option>Credit</option></select></div></div>
+ <div id="splitbox" style="display:none"><div class="mut">Cash received (rest is Fonepay)</div><input id="cashamt" type="number" inputmode="decimal"></div>
+ <div id="cbox" style="display:none"><div class="mut">Paid now (the rest becomes udharo)</div><div class="row"><input id="pc" type="number" inputmode="decimal" placeholder="Cash paid"><input id="pf" type="number" inputmode="decimal" placeholder="Fonepay paid"></div></div>
+ <div class="mut" style="margin-top:4px">Customer <span id="creq">(optional)</span></div><input id="cn" list="cl" placeholder="Type name – new names are added automatically" autocomplete="off"><input id="cph" type="tel" placeholder="Phone (optional, for new customer)" style="display:none;margin-top:6px">
+ <div class="mut" style="margin-top:8px">Note (optional)</div><input id="note" placeholder="Short note">
+ <div class="tot" style="margin-top:10px"><span class="mut">Subtotal</span><span id="sub">NPR 0</span></div><div class="tot"><b>Total</b><b class="big" id="tot">NPR 0</b></div></div>
+ <div id="m"></div><button id="save">Save Sale</button>`;
+ const P=products();
+ const calc=()=>{let sub=0;[...document.querySelectorAll('.line')].forEach(l=>{sub+=(+l.querySelector('.pr').value||0)*(+l.querySelector('.qt').value||0)});const d=+$('#disc').value||0;$('#sub').textContent=npr(sub);$('#tot').textContent=npr(sub-d);return{sub,d,tot:sub-d}};
+ a.oninput=e=>{const c=e.target.classList;if(c.contains('nm')){const p=P[norm(e.target.value)];const pr=e.target.closest('.line').querySelector('.pr');if(p&&!pr.value)pr.value=p.price}
+  if(e.target.id==='cn'){const n=norm(e.target.value);$('#cph').style.display=n&&!D.customers.some(x=>norm(x.name)===n)?'block':'none'}calc()};
+ $('#add').onclick=()=>$('#lines').insertAdjacentHTML('beforeend',lineHtml());
+ $('#meth').onchange=e=>{const v=e.target.value;$('#splitbox').style.display=v==='Split'?'block':'none';$('#cbox').style.display=v==='Credit'?'block':'none';$('#creq').textContent=v==='Credit'?'(required for udharo)':'(optional)'};
+ $('#save').onclick=async()=>{if(saving)return;const m=$('#m');const bad=t=>{m.innerHTML=`<div class="msg bad">${t}</div>`};
+  const items=[...document.querySelectorAll('.line')].map(l=>({name:l.querySelector('.nm').value.trim().replace(/\s+/g,' '),price:+l.querySelector('.pr').value,qty:+l.querySelector('.qt').value})).filter(i=>i.name||i.price);
+  if(!items.length)return bad('Add at least one item.');
+  if(items.some(i=>!i.name||!(i.price>0)||!(i.qty>0)||!Number.isInteger(i.qty)))return bad('Each item needs a name, a price above 0, and a whole-number quantity.');
+  const {sub,d,tot}=calc();if(d<0||d>sub)return bad('Discount cannot be more than the subtotal.');
+  const method=$('#meth').value;let cash=0,fp=0,credit=0;
+  if(method==='Cash')cash=tot;else if(method==='Fonepay')fp=tot;
+  else if(method==='Split'){cash=num('#cashamt');if(cash<0||cash>tot)return bad('Cash must be between 0 and the total.');fp=tot-cash}
+  else{cash=num('#pc');fp=num('#pf');if(cash<0||fp<0||cash+fp>tot)return bad('Paid now cannot be more than the total.');credit=tot-cash-fp;if(credit<=0)return bad('Nothing left as udharo. Use Cash, Fonepay or Split instead.')}
+  const cn=$('#cn').value.trim().replace(/\s+/g,' ');if(method==='Credit'&&!cn)return bad('Enter the customer name for udharo.');
+  saving=true;$('#save').disabled=true;$('#save').textContent='Saving…';
+  let cid=null,st='saved';const found=cn&&D.customers.find(x=>norm(x.name)===norm(cn));
+  if(found)cid=found.id;else if(cn){cid=crypto.randomUUID();st=await push({op:'customer',id:cid,ts:Date.now(),name:cn,phone:$('#cph').value.trim()});if(st!=='saved'&&st!=='queued'){saving=false;$('#save').disabled=false;$('#save').textContent='Save Sale';return bad(esc(stMsg(st,'').t))}}
+  const ts=Date.now(),id=draftId;draftId=crypto.randomUUID();
+  st=await push({op:'sale',id,ts,items,subtotal:sub,discount:d,total:tot,method,cash,fonepay:fp,credit,customer_id:cid,note:$('#note').value.trim(),void:false});
+  if(st==='full'||st.startsWith('rejected')){draftId=id;saving=false;$('#save').disabled=false;$('#save').textContent='Save Sale';return bad(esc(stMsg(st,'').t))}
+  msg=stMsg(st,'Sale '+npr(tot));saving=false;tab='home';render()};
+}
+
+function rHist(a){const q=hq.toLowerCase();const list=D.sales.filter(s=>(hm==='all'||s.method===hm)&&(!q||(s.items||[]).some(i=>i.name.toLowerCase().includes(q))||(s.customer_id&&cname(s.customer_id).toLowerCase().includes(q))));
+ a.innerHTML=`<h1>Sales History</h1><div class="row"><input id="hq" class="w2" placeholder="Search product or customer" value="${esc(hq)}"><select id="hm" class="w1">${['all','Cash','Fonepay','Split','Credit'].map(x=>`<option ${x===hm?'selected':''}>${x}</option>`).join('')}</select></div>
+ ${list.slice(0,200).map(s=>`<div>${card(s)}${!s.void&&!s.pending?(voiding===s.id?`<div class="card"><input id="vr" placeholder="Reason for void (optional)"><div class="row" style="margin-top:8px"><button class="sec" data-c="1">Cancel</button><button data-y="${s.id}">Confirm void</button></div></div>`:`<button class="sec" data-v="${s.id}" style="margin:-4px 0 10px;padding:8px">Void this sale</button>`):''}</div>`).join('')||'<div class="card mut">No sales match.</div>'}`;
+ $('#hq').oninput=e=>{hq=e.target.value;const p=e.target.selectionStart;rHist(a);a.insertAdjacentHTML('afterbegin',banner());const n=$('#hq');n.focus();n.setSelectionRange(p,p)};
+ $('#hm').onchange=e=>{hm=e.target.value;render()};
+ a.onclick=async e=>{const d=e.target.dataset;if(d.v){voiding=d.v;render()}else if(d.c){voiding=null;render()}else if(d.y){const {error}=await SB.rpc('void_sale',{sid:d.y,reason:$('#vr').value.trim()});if(error){alert('Could not void. Voiding needs internet. '+error.message);return}voiding=null;try{await refresh()}catch(x){}render()}}}
+
+function rPpl(a){const isC=pm==='c';const list=isC?D.customers:D.vendors,bal=isC?cbal():vbal();if(psel)return rParty(a,isC,bal);
+ const rows=[...list].sort((x,y)=>(bal[y.id]||0)-(bal[x.id]||0));
+ a.innerHTML=`<h1>People</h1><div class="row"><button class="${isC?'':'sec'}" data-m="c">Customers</button><button class="${isC?'sec':''}" data-m="v">Vendors</button></div>
+ <div class="card"><div class="mut">${isC?'Total to collect (udharo)':'Total to pay vendors'}</div><div class="big">${npr(tsum(bal))}</div></div>
+ <div class="card"><div class="mut">Add ${isC?'customer':'vendor'}</div><div class="row"><input id="pn" class="w2" placeholder="Name"><input id="pp" class="w1" type="tel" placeholder="Phone"></div><div id="pmsg"></div><button id="padd">Add</button></div>
+ ${rows.map(p=>`<div class="card" data-p="${p.id}"><div class="tot"><b>${esc(p.name)}</b><b class="${(bal[p.id]||0)>0?'neg':''}">${npr(bal[p.id]||0)}</b></div><div class="mut">${esc(p.phone||'')}${p.pending?' ⏳':''}</div></div>`).join('')||'<div class="card mut">None yet.</div>'}`;
+ a.onclick=async e=>{const d=e.target.closest('[data-p],[data-m]');if(e.target.id==='padd'){const name=$('#pn').value.trim().replace(/\s+/g,' ');if(!name){$('#pmsg').innerHTML='<div class="msg bad">Enter a name.</div>';return}
+   if(list.some(x=>norm(x.name)===norm(name))){$('#pmsg').innerHTML='<div class="msg bad">This name already exists.</div>';return}
+   const st=await push({op:isC?'customer':'vendor',id:crypto.randomUUID(),ts:Date.now(),name,phone:$('#pp').value.trim()});msg=stMsg(st,(isC?'Customer ':'Vendor ')+name+' added');render();return}
+  if(!d)return;if(d.dataset.m){pm=d.dataset.m;render()}else if(d.dataset.p){psel=d.dataset.p;render()}}}
+
+function rParty(a,isC,bal){const p=(isC?D.customers:D.vendors).find(x=>x.id===psel);if(!p){psel=null;return rPpl(a)}
+ let led;if(isC){led=[...live().filter(s=>s.customer_id===p.id&&s.credit>0).map(s=>({ts:s.ts,t:'Credit sale',amt:s.credit,n:(s.items||[]).map(i=>i.name).join(', '),pending:s.pending})),...D.cpays.filter(x=>x.customer_id===p.id).map(x=>({ts:x.ts,t:'Payment received ('+(x.cash&&x.fonepay?'Cash+Fonepay':x.cash?'Cash':'Fonepay')+')',amt:-(x.cash+x.fonepay),n:x.note,pending:x.pending}))]}
+ else led=D.vtxns.filter(x=>x.vendor_id===p.id).map(x=>({ts:x.ts,t:x.kind==='purchase'?'Purchase / bill':'Paid ('+(x.method||'')+')',amt:x.kind==='purchase'?x.amount:-x.amount,n:x.note,pending:x.pending}));
+ led.sort((x,y)=>y.ts-x.ts);const b=bal[p.id]||0;
+ a.innerHTML=`<button class="sec" id="bk" style="margin-bottom:10px">← Back</button><h1>${esc(p.name)}</h1><div class="mut">${esc(p.phone||'')}</div>
+ <div class="card"><div class="mut">${isC?'Customer owes you':'You owe this vendor'}</div><div class="big ${b>0?'neg':''}">${npr(b)}</div></div>
+ <div class="card"><div class="row"><input id="pa" class="w2" type="number" inputmode="decimal" placeholder="Amount"><select id="pmth" class="w1"><option>Cash</option><option>Fonepay</option></select></div><input id="pnt" placeholder="Note (optional)" style="margin-bottom:8px"><div id="pmsg"></div>
+ ${isC?'<button id="rc">Receive payment</button>':'<div class="row"><button id="pu" class="sec">Add purchase / bill</button><button id="pay">Pay vendor</button></div>'}</div>
+ <h2>Ledger</h2>${led.map(x=>`<div class="card"><div class="tot"><span>${x.t}${x.pending?' ⏳':''}</span><b class="${x.amt>0?'neg':''}">${x.amt>0?'+':'−'}${npr(Math.abs(x.amt))}</b></div><div class="mut">${fmtT(x.ts)}${x.n?' · '+esc(x.n):''}</div></div>`).join('')||'<div class="card mut">No entries yet.</div>'}`;
+ $('#bk').onclick=()=>{psel=null;render()};
+ const go=async(kind)=>{const amt=num('#pa'),meth=$('#pmth').value,note=$('#pnt').value.trim();const er=t=>$('#pmsg').innerHTML=`<div class="msg bad">${t}</div>`;if(!(amt>0))return er('Enter an amount above 0.');
+  let o,ok;if(isC){if(amt>b)return er('More than the amount owed ('+npr(b)+').');o={op:'cpay',id:crypto.randomUUID(),ts:Date.now(),customer_id:p.id,cash:meth==='Cash'?amt:0,fonepay:meth==='Fonepay'?amt:0,note};ok='Payment '+npr(amt)+' received'}
+  else{o={op:'vtxn',id:crypto.randomUUID(),ts:Date.now(),vendor_id:p.id,kind,amount:amt,method:kind==='payment'?meth:'',note};ok=(kind==='purchase'?'Purchase ':'Payment ')+npr(amt)+' recorded'}
+  const st=await push(o);msg=stMsg(st,ok);render()};
+ if(isC)$('#rc').onclick=()=>go('payment');else{$('#pu').onclick=()=>go('purchase');$('#pay').onclick=()=>go('payment')}}
+
+function dl(name,rows){const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const b=new Blob(['\ufeff'+rows.map(r=>r.map(q).join(',')).join('\n')],{type:'text/csv'});const u=URL.createObjectURL(b);const l=document.createElement('a');l.href=u;l.download=name+'-'+dayKey(Date.now())+'.csv';document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),2000)}
+function rRep(a){const inR=x=>x.dayKey>=rFrom&&x.dayKey<=rTo;const L=D.sales.filter(inR);const t=sum(L.filter(s=>!s.void)),vd=L.filter(s=>s.void);
+ const cp=D.cpays.filter(inR),cc=cp.reduce((x,p)=>x+p.cash,0),cf=cp.reduce((x,p)=>x+p.fonepay,0);
+ const vt=D.vtxns.filter(inR),vp=vt.filter(x=>x.kind==='purchase').reduce((x,y)=>x+y.amount,0),vc=vt.filter(x=>x.kind==='payment'&&x.method==='Cash').reduce((x,y)=>x+y.amount,0),vf=vt.filter(x=>x.kind==='payment'&&x.method==='Fonepay').reduce((x,y)=>x+y.amount,0);
+ const cb=cbal(),vb=vbal();const owe=D.customers.filter(c=>cb[c.id]>0).sort((x,y)=>cb[y.id]-cb[x.id]),pay=D.vendors.filter(v=>vb[v.id]>0).sort((x,y)=>vb[y.id]-vb[x.id]);
+ const R=(k,v,c)=>`<div class="tot"><span>${k}</span><b class="${c||''}">${npr(v)}</b></div>`;
+ a.innerHTML=`<h1>Report</h1><div class="row"><div class="w1"><div class="mut">From</div><input type="date" id="rf" value="${rFrom}"></div><div class="w1"><div class="mut">To</div><input type="date" id="rt" value="${rTo}"></div></div>
+ <div class="row"><button class="sec" id="r1">Today</button><button class="sec" id="r2">This month</button></div>
+ <h2>Sales</h2><div class="card">${R('Gross sales',t.gross)}${R('Discounts',-t.disc)}${R('Net sales',t.net)}${R('Received now: cash',t.cash)}${R('Received now: Fonepay',t.fp)}${R('Given on credit (udharo)',t.credit,'neg')}<div class="tot"><span>Transactions</span><b>${t.n}</b></div><div class="tot"><span>Items sold</span><b>${t.items}</b></div></div>
+ <h2>Money movement</h2><div class="card">${R('Udharo collected: cash',cc)}${R('Udharo collected: Fonepay',cf)}${R('Vendor purchases (bills)',vp)}${R('Vendor paid: cash',-vc)}${R('Vendor paid: Fonepay',-vf)}<hr style="border:0;border-top:1px solid var(--bd)">${R('Net cash change',t.cash+cc-vc)}${R('Net Fonepay change',t.fp+cf-vf)}</div>
+ <h2>Pending udharo (now)</h2><div class="card">${owe.map(c=>R(esc(c.name),cb[c.id],'neg')).join('')||'<span class="mut">Nobody owes you.</span>'}</div>
+ <h2>Owed to vendors (now)</h2><div class="card">${pay.map(v=>R(esc(v.name),vb[v.id])).join('')||'<span class="mut">You owe nothing.</span>'}</div>
+ <h2>By product</h2><div class="card">${Object.values(t.by).map(p=>`<div class="tot"><span>${esc(p.name)} ×${p.q}</span><span>${npr(p.amt)}</span></div>`).join('')||'<span class="mut">Nothing sold.</span>'}</div>
+ <h2>Voided (not counted above)</h2>${vd.map(card).join('')||'<div class="card mut">None.</div>'}
+ <p class="mut">This shows sales revenue only, not profit. Profit needs purchase costs per item.</p>
+ <button id="csv" class="sec">Download sales CSV (backup)</button><button id="csv2" class="sec" style="margin-top:8px">Download customer and vendor ledger CSV</button><button id="lo" class="sec" style="margin-top:8px">Log out</button>`;
+ $('#rf').onchange=e=>{rFrom=e.target.value||rFrom;render()};$('#rt').onchange=e=>{rTo=e.target.value||rTo;render()};
+ $('#r1').onclick=()=>{rFrom=rTo=dayKey(Date.now());render()};$('#r2').onclick=()=>{const d=dayKey(Date.now());rFrom=d.slice(0,8)+'01';rTo=d;render()};$('#lo').onclick=logout;
+ $('#csv').onclick=()=>{const rows=[['transaction_id','date_time','status','customer','product','qty','price','line_total','discount','sale_total','method','cash','fonepay','credit','note']];
+  [...D.sales].sort((x,y)=>x.ts-y.ts).forEach(s=>(s.items||[]).forEach(i=>rows.push([s.id,new Date(s.ts).toLocaleString('sv-SE',{timeZone:TZ}),s.void?'VOID':(s.pending?'PENDING':'ok'),s.customer_id?cname(s.customer_id):'',i.name,i.qty,i.price,i.qty*i.price,s.discount,s.total,s.method,s.cash,s.fonepay,s.credit||0,s.note])));dl('sales',rows)};
+ $('#csv2').onclick=()=>{const rows=[['party_type','party','date_time','entry','amount','note']];const T=x=>new Date(x).toLocaleString('sv-SE',{timeZone:TZ});
+  live().filter(s=>s.credit>0).forEach(s=>rows.push(['customer',cname(s.customer_id),T(s.ts),'credit sale',s.credit,(s.items||[]).map(i=>i.name).join('; ')]));
+  D.cpays.forEach(p=>rows.push(['customer',cname(p.customer_id),T(p.ts),'payment received',p.cash+p.fonepay,p.note||'']));
+  D.vtxns.forEach(x=>rows.push(['vendor',(D.vendors.find(v=>v.id===x.vendor_id)||{}).name||'?',T(x.ts),x.kind+(x.method?' '+x.method:''),x.amount,x.note||'']));
+  D.customers.forEach(c=>rows.push(['customer',c.name,'','BALANCE OWED TO YOU',cb[c.id]||0,c.phone||'']));D.vendors.forEach(v=>rows.push(['vendor',v.name,'','BALANCE YOU OWE',vb[v.id]||0,v.phone||'']));dl('ledger',rows)}}
+
+async function start(){const {data}=await SB.auth.getSession();user=data.session?.user||null;ready=true;
+ if(user){let ok=false;try{const r=await withTimeout(SB.rpc('claim_shop'),8000);if(r.error)throw r.error;ok=!!r.data;jset(MK,{u:user.id,ok})}catch(e){const c=jget(MK,null);ok=!!(c&&c.u===user.id&&c.ok);online=false}
+  member=ok;recompute();render();if(member){try{await refresh()}catch(e){online=false}await sync();render()}}
+ else render()}
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+window.addEventListener('online',()=>{online=true;sync()});window.addEventListener('offline',()=>{online=false;if(tab!=='sale')render()});
+setInterval(()=>{if(user&&member&&(qget().length||!online))sync()},30000);
+recompute();render();start();
+</script>
+</body>
+</html>
